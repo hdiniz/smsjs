@@ -1,0 +1,213 @@
+
+<!doctype HTML>
+<html>
+	<head>
+		<title>Converter</title>
+		<style>
+			#outputtable { display: none;}
+			#userdataheadertable  { display: none;}
+			#userdataheader  { display: none;}
+			#consoledebug  { display: none;}
+			td.tddata
+			{
+				max-width: 150px;
+				overflow: hidden;
+				word-break: break-all;
+			}
+		</style>
+		
+		<script type="text/javascript" src="js/bundle.js"></script>
+		<script type="text/javascript" src="js/jquery-1.11.2.min.js"></script>
+		<script type="text/javascript" src="js/bootstrap.min.js"></script>
+		<script>
+			$(document).ready ( function(){
+				$('[data-toggle="tooltip"]').tooltip();
+			})
+			doStuff = function() {
+				$('#outputtable #outputtablefields').empty();
+				$('#console').val('');
+
+				//Get input PDU & decode
+				//var s = document.getElementById("smspdu").value;
+				var SmsDecoder = require('/sms.js');
+				var FieldDef = require('/field_definitions.js');
+				
+				var pdu = $('#smspdu').val();
+				var smsdirection = document.getElementById('smsdirection').selectedIndex == 0 ? 'Receive' : 'Send';
+				var containSmsc = document.getElementById('pducontainssmsc').selectedIndex == 0 ? true : false;
+				var isFromRpError = document.getElementById('pdufromrperror').selectedIndex == 0 ? false : true;
+				
+				var dec = new SmsDecoder();
+				var lol = dec.decode(pdu, smsdirection, containSmsc, isFromRpError);
+				console.log(lol);
+				//If SMSC, add SMSC
+				
+				if(containSmsc) {
+					$("#outputtable tbody").append('<tr id="SMSC"><td class="col-md-1"><b>SMSC</b></td><td class="tdvalue col-md-9">' + lol['SMSC'].Value + '</td><td class="col-md-2 tddata">' + lol['SMSC'].Data + '</td></tr>');
+					var smscvalue = lol['SMSC'].Value;
+					if (typeof smscvalue === 'object') {
+						$('tr#SMSC td.tdvalue').empty();
+						var smsctable = '<table class="table table-hover table-bordered"><tbody>';
+						for (var j in smscvalue) {
+							smsctable += '<tr><td class="col-md-1"><b>' + j + '</b></td><td>' + smscvalue[j] + '</td></tr>';
+						}
+						smsctable += '</tbody></table>';
+						$('tr#SMSC td.tdvalue').append($(smsctable));
+					}
+				}
+				
+				var smstype = smsdirection == 'Receive' ? FieldDef.SmsRecvType : FieldDef.SmsSendType;
+				
+				//Get only First Byte fields		
+				var firstbytedef = smstype.FirstByteMask.findValue(lol['TP-MTI'].Data);
+				for (var i in firstbytedef) {
+					$("#outputtable #outputtablefields").append('<tr id=' + firstbytedef[i].Name + '><td class="col-md-1"><b>' + firstbytedef[i].Name + '</b></td><td class="tdvalue col-md-9">' + lol[firstbytedef[i].Name].Value + '</td><td class="col-md-2 tddata">' + lol[firstbytedef[i].Name].Data + '</td></tr>');
+				}
+				
+				//Get other fields, except User Data
+				var fielddef = smstype.Fields.findValue(lol['TP-MTI'].Data);
+				for (var i in fielddef) {
+					if (lol[fielddef[i].Name] === undefined || lol[fielddef[i].Name] === null) continue;
+					if (fielddef[i].Name == 'TP-UD') continue;
+					$("#outputtable #outputtablefields").append('<tr id=' + fielddef[i].Name + '><td class="col-md-1"><b>' + fielddef[i].Name + '</b></td><td class="tdvalue col-md-9">' + lol[fielddef[i].Name].Value + '</td><td class="col-md-2 tddata">' + lol[fielddef[i].Name].Data + '</td></tr>');
+					var valueobject = lol[fielddef[i].Name].Value;
+					if (typeof valueobject === 'object') {
+						$('tr#' + fielddef[i].Name + ' td.tdvalue').empty();
+						var table = '<table class="table table-hover table-bordered"><tbody>';
+						for (var j in valueobject) {
+							table += '<tr><td class="col-md-1"><b>' + j + '</b></td><td>' + valueobject[j] + '</td></tr>';
+						}
+						table += '</tbody></table>';
+						$('tr#' + fielddef[i].Name + ' td.tdvalue').append($(table));
+					}
+				}
+				
+				//If User Data Header
+				if(lol['TP-UDHI'].Data == '40') {	
+					
+					var IEs = lol['TP-UD'].Value.UDH.Value.IE;
+					console.log( lol['TP-UD'].Value.UDH);
+					for (var i in IEs) {
+						$("#userdataheadertable #userdataheaderfields").append('<tr><td class="col-md-1"><b>' + IEs[i].ID + '</b></td><td class="tdvalue col-md-9">' + IEs[i].Description + '</td><td class="col-md-2 tddata">' + IEs[i].Data + '</td></tr>');
+					}
+					$('td#userdataheaderlength').html(lol['TP-UD'].Value.UDH.Data.length / 2 - 1);
+					$('td#userdataheaderdata').html(lol['TP-UD'].Value.UDH.Data);
+					$('#userdataheader').show();
+					$('#userdataheadertable').show();
+				}
+				
+				//Show output table
+				$('#outputtable').show();
+				$('#consoledebug').show();
+				
+			}
+		</script>
+		<link rel="stylesheet" href="css/bootstrap.min.css">
+		<link rel="stylesheet" href="css/bootstrap-theme.min.css">
+
+	</head>
+	<body>
+		<div class="container">
+			<div class="row">&nbsp;</div>
+			<div class="row">
+			  <div class="col-xs-12">
+				<div class="form-group">
+					<div class="input-group input-group-lg">
+						<span class="input-group-addon">PDU</span>
+						<input type="text" class="form-control" placeholder="07915512499995694009..." aria-describedby="sizing-addon1" id="smspdu">
+						 <span class="input-group-btn">
+							<button class="btn btn-default" type="button" onclick="doStuff();">Parse!</button>
+						 </span>
+					</div>
+				</div><!-- /form-group -->
+			  </div><!-- /.col-xs-12 -->
+			</div><!-- /.row -->
+			<div class="row">
+				<div class="col-xs-4">
+					  <div class="form-group">
+						  <div class="input-group input-group"  data-toggle="tooltip" data-placement="bottom" title="2 bits are used to identify SMS type, but 8 types are possible. Its necessary to know direction.">
+							<span class="input-group-addon">Direction</span>
+							<select id='smsdirection' class="form-control">
+								<option>From SMSC to MS</option>
+								<option>From MS to SMSC</option>
+							</select>
+						  </div>
+					  </div>
+				</div><!-- /.col-xs-4 -->
+				<div class="col-xs-4">
+					  <div class="form-group">
+						  <div class="input-group input-group"  data-toggle="tooltip" data-placement="bottom" title="Whether the SMS PDU is preceded by a SMSC field. The SMSC field is not technicaly part of the SMS PDU, but it is commonly present.">
+							<span class="input-group-addon">SMSC</span>
+							<select id='pducontainssmsc' class="form-control">
+								<option>PDU contains SMSC address</option>
+								<option>PDU does not contain SMSC address</option>
+							</select>
+						  </div>
+					  </div>
+				</div><!-- /.col-xs-4 -->
+				<div class="col-xs-4">
+					  <div class="form-group">
+						  <div class="input-group input-group"  data-toggle="tooltip" data-placement="bottom" title="For some PDU types some fields are only present if the SMS PDU was originated from a RP-ERROR message. e.g TP-FCS (Failure Cause Status)">
+							<span class="input-group-addon">RP-ERROR</span>
+							<select id='pdufromrperror' class="form-control">
+								<option>This PDU is not from RP-ERROR</option>
+								<option>This PDU is from RP-ERROR</option>
+							</select>
+						  </div>
+					  </div>
+				</div><!-- /.col-xs-4 -->
+			</div> <!-- ./row -->
+			
+			<div class="row">
+				<div class="col-xs-12">			
+					<table id="outputtable" class="table table-hover table-bordered">
+						<thead>
+							<th class="col-md-1">Field</th>
+							<th>Value</th>
+							<th>Data (hex)</th>
+						</thead>
+						<tbody id="outputtablefields">
+						</tbody>
+					</table>
+				</div>
+			</div>
+			<div class="row" id="userdataheader">	
+				<div class="col-xs-12">
+					<h4>User data header</h4>
+					<table class="table table-hover table-bordered">
+						<thead>
+							<th class="col-md-1">Length</th>
+							<th>Data (hex)</th>
+						</thead>
+						<tbody>
+							<td id="userdataheaderlength" class="col-md-1"></td>
+							<td id="userdataheaderdata"></td>
+						</tbody>
+					</table>
+					<table id="userdataheadertable" class="table table-hover table-bordered">
+						<thead>
+							<th class="col-md-1">IE</th>
+							<th>Description</th>
+							<th>Data (hex)</th>
+						</thead>
+						<tbody id="userdataheaderfields">
+						</tbody>
+					</table>
+				</div>
+			</div>
+			<div class="row" id="userdata">	
+				<div class="col-xs-12">
+					<h4>User data</h4>
+				</div>
+			</div>
+			<div class="row" id="consoledebug">
+					<div class="col-xs-12">	
+					<h4>Debug</h4>
+						<div class="form-group">
+							<textarea class="form-control" id="console" placeholder="" rows="30"></textarea>
+						</div>
+					</div>
+			</div>
+		</div>
+	</body>
+</html>

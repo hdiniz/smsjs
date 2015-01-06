@@ -1,0 +1,14 @@
+{
+	"name": "SmsJs",
+	"version": "0.0.1",
+	"author": "Henrique Silva",
+	"description": "blablabla",
+	"devDependencies": {
+		"browserify": "*",
+		"watchify": "*"
+	},
+	"scripts": {
+		"build-js": "cd js && browserify -r ./sms.js -r ./field_definitions.js -o ./bundle.js",
+		"watch-js": "cd js && watchify -r ./sms.js -r ./field_definitions.js -o ./bundle.js --debug --verbose"
+	}
+}
