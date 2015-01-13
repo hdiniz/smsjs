@@ -143,8 +143,10 @@ var DataCodingScheme = {
 			return{consumed: 0, result: {}};
 		}
 		
-		var dcs = getOctetFromPduAsString(pdu, cursor++);
-		return {consumed: cursor, result: DataCodingScheme.Decoder.decode(dcs)};	
+		var dcs = getOctetFromPdu(pdu, cursor++);
+		var result = DataCodingScheme.Decoder.decode(dcs);
+		result.Data = toHexString(result.Data);
+		return {consumed: cursor, result: result};	
 	}
 }
 
@@ -330,23 +332,23 @@ var UserDataField = {
 				if (ieId == 0x04) { //Port addressing 8bit
 					result.DestPort = parseInt(ieData.substr(0, 2), 16);
 					result.OrigPort =parseInt(ieData.substr(2, 2), 16);
-					dI('8 bit port addressing, dest: ' + result.DestPort + ', orig: ' + result.OrigPort);
+					dI('port addressing, 8 bit dest: ' + result.DestPort + ', orig: ' + result.OrigPort);
 				} else if (ieId == 0x05) { //Port addressing 16bit
 					result.DestPort = parseInt(ieData.substr(0, 4), 16);
 					result.OrigPort = parseInt(ieData.substr(4, 4), 16);
-					dI('16 bit port addressing, dest: ' + result.DestPort + ', orig: ' + result.OrigPort);
+					dI('port addressing, 16bit dest: ' + result.DestPort + ', orig: ' + result.OrigPort);
 				}
 				
 				if (ieId == 0x00) { //8bit concatenated message
 					result.ConcatMsgReference = ieData.substr(0,2);
 					result.TotalConcatMsgs = ieData.substr(2, 2);
 					result.ConcatMsgSeqNumber = ieData.substr(4, 2);
-					dI('8bit concatenated message, reference: ' + result.ConcatMsgReference + ', total: ' + result.TotalConcatMsgs + ', sequence: ' + result.ConcatMsgSeqNumber);
+					dI('concatenated message, 8bit reference: ' + result.ConcatMsgReference + ', total: ' + result.TotalConcatMsgs + ', sequence: ' + result.ConcatMsgSeqNumber);
 				} else if (ieId == 0x08) { //16bit concatenated message
 					result.ConcatMsgReference = ieData.substr(0,4);
 					result.TotalConcatMsgs = ieData.substr(4, 2);
 					result.ConcatMsgSeqNumber = ieData.substr(6, 2);
-					dI('16bit concatenated message, reference: ' + result.ConcatMsgReference + ', total: ' + result.TotalConcatMsgs + ', sequence: ' + result.ConcatMsgSeqNumber);
+					dI('concatenated message, 16bit reference: ' + result.ConcatMsgReference + ', total: ' + result.TotalConcatMsgs + ', sequence: ' + result.ConcatMsgSeqNumber);
 				}
 			}
 			result.IE.push({ID: toHexString(ieId), Length: ieLength, Data: ieData, Description: FieldDef.InformationElements.findValue(ieId)});
@@ -453,6 +455,7 @@ SmsDecoder.prototype.decode = function (pdu, direction, hasSmsc, isRpError) {
 	}
 	
 	var fbyte = this.getNextOctet();
+	this.Sms.FirstByte = toHexString(fbyte);
 	this.decodeFirstByte(fbyte, typedef);
 	
 	
@@ -503,14 +506,10 @@ SmsDecoder.prototype.decodeFields = function(fielddef) {
 module.exports = SmsDecoder;
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-/*var dec = new SmsDecoder();
-//var lol = dec.decode('07911326040000F0040B911346610089F60000208062917314080CC8F71D14969741F977FD07', 'Receive');
-var lol = dec.decode('07915591191035005100098199595500F40000FF36050003D90202CAE572B95C2E97E5F93A1A7D369FCFF9F3F98CAEA3D1E8F3F98C46A3D1E8F3F97C46A3CFE7F3F97C3E03', 'Send', true, true);
+var dec = new SmsDecoder();
+var lol = dec.decode('07915512499995694009D0437658FEF63FF5411160411511888C0B05040B8423F00003C903025201872F060370702D310001872006033230302E3136392E3132362E303130000187210685018722060361702D310001C6530187230603383739390001010101C655018711060361702D310001871006AB0187070603436C61726F20466F746F0001870806036D6D732E636C61726F2E636F6D2E627200018709068901C65A01', 'Receive', true, false);
 console.log(lol);
-console.log(lol['TP-UD']);
-for(var i in lol) {
-	console.log(i);
-}*/
+
 /*
 SMS-DELIVER - WAP PUSH, provisioning - 3 part
 07915512499995694009D0437658FEF63FF5411160411532888C0B05040B8423F000031803012506311F2FB6918192443143353142353138463439443944333432363244373137424344363234363542314534434535360081EA030B6A00C54503312E310001C6560187070603506F7274616C20436C61726F000101C6510187150603677072732E736D61727474727573742E636F6D000187070603506F7274616C20436C61
