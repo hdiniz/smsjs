@@ -140,9 +140,15 @@ var DefaultAlphabet = new Mask('0x00', '0x7F', [
 
 var Gsm7Bit = {
 	decodeSemiOctets: function(pdu, semioctets, udh) {
+		if (isNaN(semioctets) && semioctets !== null && semioctets !== undefined) {
+			semioctets = parseInt(semioctets, 16);
+		}
 		return Gsm7Bit.decode(pdu, Math.floor(semioctets/2) + semioctets % 2, udh);
 	},
 	decodeSeptets: function(pdu, septets, udh) {
+		if (isNaN(septets) && septets !== null && septets !== undefined) {
+			septets = parseInt(septets, 16);
+		}
 		return Gsm7Bit.decode(pdu, Math.ceil(septets * 7 / 8), udh);
 	},
 	decode: function(pdu, length, udh) {
@@ -166,8 +172,9 @@ var Gsm7Bit = {
 		
 		if (udh !== null && udh !== undefined && udh.consumed !== undefined) {
 			skip = Math.ceil(8*udh.consumed / 7);
+			dI('Gsm7Bit.decode(): skipping ' + skip + ' due to udh');
 		}
-		
+
 		for (var i = 0; i < length; i++) {
 			var octet = getOctetFromPdu(pdu, cursor++);
 			code = code + (octet << shift);
@@ -182,6 +189,8 @@ var Gsm7Bit = {
 				code = 0;
 			}
 		}
+		dI('Gsm7Bit.decode():');
+		dI(text);
 		return {consumed: cursor, result: {Value: text, Data: getSubstringFromPdu(pdu, cursor)}};
 	}
 }
