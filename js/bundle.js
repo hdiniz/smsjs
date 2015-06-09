@@ -716,9 +716,9 @@ var ValidityPeriodField = {
 				time = (vp - 192) * 7 * 24 * 60; //minutes
 			}
 			return {consumed: 1, result: {Value: time, Data: toHexString(vp)}};
-		} else if (vpf == '08') { //absolute
+		} else if (vpf == '18') { //absolute
 			return TimestampField.decode(pdu);
-		} else if (vpf == '18') { //enhanced
+		} else if (vpf == '08') { //enhanced
 			dI('Enhanced timestamp not supported');
 			vp = pdu.substr(0, 7*2);
 			return {consumed: 7, result: {Value: 'Not supported', Data: toHexString(vp)}};
