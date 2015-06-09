@@ -642,7 +642,7 @@ var DcsCodingMessageClass = function(par) {
 }
 var DataCodingScheme = {
 	Decoder: new Decoder('0x00', '0xF0', [ 
-		new Decoder('0x00', DcsGeneralDataCodingIndication),
+		new Decoder('0x00-0x3F', DcsGeneralDataCodingIndication),
 		new Decoder('0x40-0xB0', DcsReservedCodingGroup),
 		new Decoder('0xC0-0xE0', DcsMessageWaitingIndicationGroup),
 		new Decoder('0xF0', DcsCodingMessageClass)
