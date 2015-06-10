@@ -429,8 +429,13 @@ var FieldDecoders = {
 
 var SmsDecoder = function() {}
 
+SmsDecoder.prototype.peekNextOctet = function () {
+    var a = this.Pdu.substr(this.Cursor*2, 2);
+    return !!a ? parseInt(a, 16) : null;
+}
+
 SmsDecoder.prototype.getNextOctet = function () {
-	var a = this.Pdu.substr(this.Cursor*2, 2);
+    var a = this.Pdu.substr(this.Cursor*2, 2);
     this.Cursor = this.Cursor + 1;
     return !!a ? parseInt(a, 16) : null;
 }
@@ -444,7 +449,13 @@ SmsDecoder.prototype.decode = function (pdu, direction, hasSmsc, isRpError) {
 	this.Sms = {};
 	
 	this.decodeSmsc();
-	
+        var rpLength = this.peekNextOctet();
+        if (rpLength == (this.Pdu.length/2 - this.Cursor - 1)) {
+            dI('Looks like RP-Data-Length @ ' + this.Cursor);
+            dI('RP-Data-Length: ' + rpLength);
+            this.Cursor++;
+        }
+
 	var typedef;
 	if (this.Direction == 'Send') {
 		typedef = FieldDef.SmsSendType;
@@ -505,6 +516,9 @@ SmsDecoder.prototype.decodeFields = function(fielddef) {
 
 module.exports = SmsDecoder;
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+//var dec = new SmsDecoder();
+//var lol = dec.decode('079175130600011219112e0a8113470310230000a70dd17a19247eb759a032280c02', 'Send', true, false);
+//console.log(lol);
 
 //var dec = new SmsDecoder();
 //var lol = dec.decode('07915512499995694009D0437658FEF63FF5411160411511888C0B05040B8423F00003C903025201872F060370702D310001872006033230302E3136392E3132362E303130000187210685018722060361702D310001C6530187230603383739390001010101C655018711060361702D310001871006AB0187070603436C61726F20466F746F0001870806036D6D732E636C61726F2E636F6D2E627200018709068901C65A01', 'Receive', true, false);

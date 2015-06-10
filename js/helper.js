@@ -1,27 +1,27 @@
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 var dW = function(m) {
-	if (document !== undefined && document.getElementById("console") !== null && document.getElementById("console") !== undefined) {
+	if (typeof document !== 'undefined' && document.getElementById("console") !== null && document.getElementById("console") !== undefined) {
 		document.getElementById("console").value += m + '\n';
 	}
 	console.warning(m);
 }
 
 var dE = function(m) {
-	if (document !== undefined && document.getElementById("console") !== null && document.getElementById("console") !== undefined) {
+	if (typeof document !== 'undefined' && document.getElementById("console") !== null && document.getElementById("console") !== undefined) {
 		document.getElementById("console").value += m + '\n';
 	}
 	console.error(m);
 }
 
 var dD = function(m) {
-	if (document !== undefined && document.getElementById("console") !== null && document.getElementById("console") !== undefined) {
+	if (typeof document !== 'undefined' && document.getElementById("console") !== null && document.getElementById("console") !== undefined) {
 		document.getElementById("console").value += m + '\n';
 	}
 	console.error(m);
 }
 
 var dI = function(m) {
-	if (document !== undefined && document.getElementById("console") !== null && document.getElementById("console") !== undefined) {
+	if (typeof document !== 'undefined' && document.getElementById("console") !== null && document.getElementById("console") !== undefined) {
 		document.getElementById("console").value += m + '\n';
 	}
 	console.log(m);
