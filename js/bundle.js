@@ -531,10 +531,10 @@ var UCS2 = {
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 var AddressField = {
-	decode: function(pdu, sms) {
+	decode: function(pdu, smsc) {
 		var Pdu = pdu;
 		var cursor = 0;
-		var isSmsc = sms.SMSC === undefined;
+		var isSmsc = smsc !== undefined && smsc == true;
 		var getNextOctet = function() {
 			var a = Pdu.substr(Cursor, 2);
 			Cursor = Cursor + 2;
@@ -542,30 +542,33 @@ var AddressField = {
 		}
 		
 		var length = getOctetFromPdu(pdu, cursor++);
-		dI('Address length field: ' + length + ', isSmsc: ' + isSmsc);
+		dI('AddressField:: length: ' + length + ', isSmsc: ' + isSmsc);
 		if (length <= 0) {
-			if (!isSmsc) cursor++;
-			return {consumed: cursor, result: {}};
+			cursor++;
+                        return {consumed: cursor, result: {}};
 		}
 		
 		var tp = getOctetFromPdu(pdu, cursor++);
 		var type = FieldDef.TypeOfAddress.findValue(tp);
 		if (type === null) {
+                        dW('AddressField:: could not decode type of address');
 			return {consumed: cursor, result: {}};
 		}
 		
 		var plan = FieldDef.NumberingPlanIdentification.findValue(tp);
 		if (plan === null) {
+                        dW('AddressField:: could not decode numbering plan of address');
 			return {consumed: cursor, result: {}};
 		}
 		
 		var address = '';
 		if ((tp & 0xF0) == 0xD0) { //Alphanumeric
-			dI('Address type field is alphanumeric');
+			dI('AddressField:: alphanumeric');
 			var gsmtxt = Gsm7Bit.decodeSemiOctets(Pdu.substring(cursor*2), length);
 			address = gsmtxt.result.Value;
 			cursor += gsmtxt.consumed;	
 		} else {
+                        dI('AddressField:: semi-octet');
 			var octets = Math.floor(length/2) + length % 2;
 			if (isSmsc) {
 				octets = length - 1;
@@ -593,8 +596,8 @@ var ProtocolIdentifier = {
 	decode: function(pdu, sms) {
 		var cursor = 0;
 		if (sms['TP-PI'] !== undefined && !sms['TP-PI'].Value.PID) {
-			dI('Skiping TP-PID as indicated by TP-PI');
-			return {consumed: 0, result: {}};
+			dI('ProtocolIdentifier:: skiping TP-PID as indicated by TP-PI');
+			return {consumed: 0, result: {Value: 'Not present'}};
 		}
 		var pid = getOctetFromPduAsString(pdu, cursor++);
 		var value = FieldDef.ProtocolIdentifier.findValue(pid);
@@ -650,8 +653,8 @@ var DataCodingScheme = {
 	decode: function(pdu, sms) {
 		var cursor = 0;
 		if (sms['TP-PI'] !== undefined && !sms['TP-PI'].Value.DCS) {
-			dI('Skiping TP-DCS as indicated by TP-PI');
-			return{consumed: 0, result: {}};
+			dI('DataCodingScheme:: skiping TP-DCS as indicated by TP-PI');
+			return {consumed: 0, result: {Value: 'Not present'}};
 		}
 		
 		var dcs = getOctetFromPdu(pdu, cursor++);
@@ -700,11 +703,13 @@ var ValidityPeriodField = {
 	decode: function(pdu, sms) {
 		var vpf = sms['TP-VPF'].Data;
 		if (vpf == '00') {
-			return {consumed: 0, result: {Value: 'Not present', Data: null}};
+			dI('ValidityPeriodField:: skiping TP-VP as indicated by TP-VPF');
+                        return {consumed: 0, result: {Value: 'Not present', Data: null}};
 		} 
 		var vp;
 		if (vpf == '10') { //relative
-			var time;
+			dI('ValidityPeriodField:: relative format');
+                        var time;
 			vp = parseInt(IntegerField.decode(pdu).result.Data, 16);
 			if (vp >= 0 && vp <= 143) {
 				time = (vp + 1) * 5; //minutes
@@ -715,11 +720,12 @@ var ValidityPeriodField = {
 			} else if (vp >= 197 && vp <= 255) {
 				time = (vp - 192) * 7 * 24 * 60; //minutes
 			}
-			return {consumed: 1, result: {Value: time, Data: toHexString(vp)}};
+			return {consumed: 1, result: {Value: time + ' minutes', Data: toHexString(vp)}};
 		} else if (vpf == '18') { //absolute
+			dI('ValidityPeriodField:: absolute format');
 			return TimestampField.decode(pdu);
 		} else if (vpf == '08') { //enhanced
-			dI('Enhanced timestamp not supported');
+			dI('ValidityPeriodField:: enhanced format, currently not supported');
 			vp = pdu.substr(0, 7*2);
 			return {consumed: 7, result: {Value: 'Not supported', Data: toHexString(vp)}};
 		}
@@ -728,7 +734,8 @@ var ValidityPeriodField = {
 
 var UnsupportedField = {
 	decode: function() {
-		return {consumed: 0, result: {Value: 'Not supported', Data: null}};
+		dW('UnsupportedField::');
+                return {consumed: 0, result: {Value: 'Not supported', Data: null}};
 	}
 }
 
@@ -759,7 +766,7 @@ var ParameterIndicatorField = {
 		var multipi = (pi & 0x80) == 0x80
 		
 		if (multipi) {
-			dD('The is more than one TP-PI, not supported');
+			dW('ParameterIndicatorField:: there is more than one TP-PI, currently not supported');
 		}
 		
 		var udl = (pi & 0x04) == 0x04;
@@ -776,11 +783,11 @@ var UserDataField = {
 		var cursor = 0;
 		
 		if (sms['TP-PI'] !== undefined && !sms['TP-PI'].Value.UDL) {
-			dI('Skiping TP-UD as indicated by TP-PI');
-			return {consumed: 0, result: {}};
+			dI('UserDataField:: skiping TP-UD as indicated by TP-PI');
+			return {consumed: 0, result: {Value: 'Not present'}};
 		}
 	
-		dI('Parsing User Data');
+		dI('UserDataField:: parsing..');
 	
 		var udhi = sms['TP-UDHI'].Data == '40';
 		var udl = sms['TP-UDL'].Data;
@@ -791,24 +798,26 @@ var UserDataField = {
 		
 		var udh = {};
 		if (udhi) {
-			dI('UDH present');
-			udh = UserDataField.decodeUDH(pdu, sms);
-			cursor += udh.consumed;
-		}
+		    dI('UserDataField:: TP-UDHI indicates a header is present');
+		    udh = UserDataField.decodeUDH(pdu, sms);
+		    cursor += udh.consumed;
+		} else {
+                    udh = {result:{Value: 'Not present', Data: ''}};
+                }
 		
 		var ud = {consumed: 0}
 		if (charset == 'GSM 7 bit default alphabet') {
-			dI('Decoding User Data as GSM 7 Bit alphabet');
+			dI('UserDataField:: decoding as GSM 7 Bit alphabet');
 			ud = Gsm7Bit.decodeSeptets(pdu, udl, udh);
 		} else if (charset == '8 bit data') {
-			dI('Decoding User Data as 8 bit data');
+			dI('UserDataField:: decoding as 8 bit data');
 			if (udh.result.Value.DestPort != undefined && udh.result.Value.DestPort == 2948) {
-				dI('Destination port is WSP Push Port, decoding as Wap Push');
-				dI('Wap push decoding not implemented');
+				dW('UserDataField:: destination port is WSP Push, decoding as Wap Push currently not supported');
 			}
 		} else if (charset == 'UCS2 (16bit)') {
-			dI('Decoding User Data as UCS2 (16 bit)');
+			dW('UserDataField:: UCS2 (16 bit) currently not supported');
 		} else {
+                        dW('UserDataField:: unrecognized charset');
 		}
 		
 		cursor += ud.consumed;
@@ -823,9 +832,9 @@ var UserDataField = {
 		var cursor = 0;
 
 		var udhLength = getOctetFromPdu(pdu, cursor++);
-		dI('UDH Length: ' + udhLength);
 		if (udhLength <= 0) {
-			return {consumed: Cursor, result: {}};
+                        dE('UserDataField::Header length is zero');
+			return {consumed: Cursor, result: {Value: 'Not present'}};
 		}
 		
 		var result = {IE: []};
@@ -838,29 +847,32 @@ var UserDataField = {
 					ieData += getOctetFromPduAsString(pdu, cursor++);
 				}
 				
-				dI('Found Information Element: ' + ieId.toString(16) + ', Length: ' + ieLength.toString(16) + ', Data: ' + ieData.toString(16));
+				dI('UserDataField::Header found Information Element: ' + ieId.toString(16)
+                                   + ', Length: ' + ieLength.toString(16) + ', Data: ' + ieData.toString(16));
 				
 				if (ieId == 0x04) { //Port addressing 8bit
 					result.DestPort = parseInt(ieData.substr(0, 2), 16);
 					result.OrigPort =parseInt(ieData.substr(2, 2), 16);
-					dI('port addressing, 8 bit dest: ' + result.DestPort + ', orig: ' + result.OrigPort);
+					dI('UserDataField::Header port addressing, 8 bit dest: ' + result.DestPort + ', orig: ' + result.OrigPort);
 				} else if (ieId == 0x05) { //Port addressing 16bit
 					result.DestPort = parseInt(ieData.substr(0, 4), 16);
 					result.OrigPort = parseInt(ieData.substr(4, 4), 16);
-					dI('port addressing, 16bit dest: ' + result.DestPort + ', orig: ' + result.OrigPort);
-				}
-				
-				if (ieId == 0x00) { //8bit concatenated message
+					dI('UserDataField::Header port addressing, 16bit dest: ' + result.DestPort + ', orig: ' + result.OrigPort);
+				} else if (ieId == 0x00) { //8bit concatenated message
 					result.ConcatMsgReference = ieData.substr(0,2);
 					result.TotalConcatMsgs = ieData.substr(2, 2);
 					result.ConcatMsgSeqNumber = ieData.substr(4, 2);
-					dI('concatenated message, 8bit reference: ' + result.ConcatMsgReference + ', total: ' + result.TotalConcatMsgs + ', sequence: ' + result.ConcatMsgSeqNumber);
+					dI('UserDataField::Header concatenated message, 8bit reference: ' + result.ConcatMsgReference 
+                                           + ', total: ' + result.TotalConcatMsgs + ', sequence: ' + result.ConcatMsgSeqNumber);
 				} else if (ieId == 0x08) { //16bit concatenated message
 					result.ConcatMsgReference = ieData.substr(0,4);
 					result.TotalConcatMsgs = ieData.substr(4, 2);
 					result.ConcatMsgSeqNumber = ieData.substr(6, 2);
-					dI('concatenated message, 16bit reference: ' + result.ConcatMsgReference + ', total: ' + result.TotalConcatMsgs + ', sequence: ' + result.ConcatMsgSeqNumber);
-				}
+					dI('UserDataField::Header concatenated message, 16bit reference: ' + result.ConcatMsgReference
+                                           + ', total: ' + result.TotalConcatMsgs + ', sequence: ' + result.ConcatMsgSeqNumber);
+				} else {
+					dI('UserDataField::Header Information Element not supported');
+                                }
 			}
 			result.IE.push({ID: toHexString(ieId), Length: ieLength, Data: ieData, Description: FieldDef.InformationElements.findValue(ieId)});
 			
@@ -917,8 +929,8 @@ var FieldDecoders = {
 	'TP-UDL': {
 		decode: function(pdu, sms) {
 			if (sms['TP-PI'] !== undefined && !sms['TP-PI'].Value.UDL) {
-				dI('Skiping TP-UDL as indicated by TP-PI');
-				return {consumed: 0, result: {}};
+				dI('UserDataLength:: skiping TP-UDL as indicated by TP-PI');
+				return {consumed: 0, result: {Value: 0, Data: "00"}};
 			}
 			var res = IntegerField.decode(pdu, sms);
 			res.result.Value = parseInt(res.result.Value, 16);
@@ -959,21 +971,28 @@ SmsDecoder.prototype.decode = function (pdu, direction, hasSmsc, isRpError) {
 	this.isRpError = (isRpError === null || isRpError === undefined) ? false : isRpError;
 	this.Sms = {};
 	
-	this.decodeSmsc();
+        dI('SmsDecoder:: start');
+        dI('SmsDecoder:: Pdu: ' + this.Pdu);
+        dI('SmsDecoder:: Direction: ' + this.Direction);
+        dI('SmsDecoder:: hasSmsc: ' + this.hasSmsc);
+        dI('SmsDecoder:: isRpError: ' + this.isRpError);
+        if (hasSmsc) {
+	    this.decodeSmsc();
+        } else {
+            this.Sms.SMSC = '';
+        }
         var rpLength = this.peekNextOctet();
         if (rpLength == (this.Pdu.length/2 - this.Cursor - 1)) {
-            dI('Looks like RP-Data-Length @ ' + this.Cursor);
-            dI('RP-Data-Length: ' + rpLength);
+            dI('SmsDecoder:: looks like RP-Data-Length @ ' + this.Cursor);
+            dI('SmsDecoder:: RP-Data-Length: ' + rpLength);
             this.Cursor++;
         }
 
 	var typedef;
 	if (this.Direction == 'Send') {
 		typedef = FieldDef.SmsSendType;
-		dI('SMS direction: Send'); 
 	} else {
 		typedef = FieldDef.SmsRecvType;
-		dI('SMS direction: Receive'); 
 	}
 	
 	var fbyte = this.getNextOctet();
@@ -987,19 +1006,14 @@ SmsDecoder.prototype.decode = function (pdu, direction, hasSmsc, isRpError) {
 }
 
 SmsDecoder.prototype.decodeSmsc = function() {
-	if (this.hasSmsc) {
-		dI('Parsing SMSC @ ' + this.Cursor);
-		this.Sms.SMSC = AddressField.decode(this.Pdu, true);
-		this.Cursor += this.Sms.SMSC.consumed;
-		this.Sms.SMSC = this.Sms.SMSC.result;
-	} else {
-		this.Sms.SMSC = '';
-	}
+        dI('SmsDecoder:: parsing SMSC @ ' + this.Cursor);
+        this.Sms.SMSC = AddressField.decode(this.Pdu, true);
+        this.Cursor += this.Sms.SMSC.consumed;
+        this.Sms.SMSC = this.Sms.SMSC.result;
 }
 
 SmsDecoder.prototype.decodeFirstByte = function(fbyte, typedef) {
-	dI('Parsing first byte: ' + fbyte.toString(16) + ' @ ' + (this.Cursor-1));
-	
+	dI('SmsDecoder:: parsing first byte: ' + fbyte.toString(16) + ' @ ' + (this.Cursor-1));
 
 	var fbytedef = typedef.FirstByteMask.findValue(fbyte);
 	for (var i = 0; i < fbytedef.length; i++) {	
@@ -1007,7 +1021,7 @@ SmsDecoder.prototype.decodeFirstByte = function(fbyte, typedef) {
 		var field  =  fbytedef[i].Mask.findValue(fbyte);
 		var data = field.Data;
 		var value = field.Value;
-		dI(name + ': ' + data);
+		dI('SmsDecoder::decodeFirstByte ' + name + ': ' + data);
 		this.Sms[fbytedef[i].Name] = {
 			Data: data,
 			Value: value
@@ -1018,7 +1032,7 @@ SmsDecoder.prototype.decodeFirstByte = function(fbyte, typedef) {
 SmsDecoder.prototype.decodeFields = function(fielddef) {
 	for (var i = 0; i < fielddef.length; i++) {
 		var field = fielddef[i];		
-		dI('Parsing field: ' + field.Name + ' @ ' + this.Cursor);
+		dI('SmsDecoder:: parsing field: ' + field.Name + ' @ ' + this.Cursor);
 		var result = FieldDecoders[field.Name].decode(this.Pdu.substring(this.Cursor*2), this.Sms);
 		this.Sms[field.Name] = !!result ? result.result : '';
 		this.Cursor += result.consumed;
@@ -1038,7 +1052,7 @@ module.exports = SmsDecoder;
 /*
 SMS-DELIVER - WAP PUSH, provisioning - 3 part
 07915512499995694009D0437658FEF63FF5411160411532888C0B05040B8423F000031803012506311F2FB6918192443143353142353138463439443944333432363244373137424344363234363542314534434535360081EA030B6A00C54503312E310001C6560187070603506F7274616C20436C61726F000101C6510187150603677072732E736D61727474727573742E636F6D000187070603506F7274616C20436C61
-07915512499995694009D0437658FEF63FF5411160411562888C0B05040B8423F00003180302726F0001871C0603687474703A2F2F7761702E636C61726F2E636F6D2E62720001C65201872F060370702D310001872006033230302E3136392E3132362E303131000187210685018722060361702D310001C6530187230603383739390001010101C655018711060361702D310001871006AB0187070603506F7274616C2043
+963138490D0437658FEF63FF5411160411562888C0B05040B8423F00003180302726F0001871C0603687474703A2F2F7761702E636C61726F2E636F6D2E62720001C65201872F060370702D310001872006033230302E3136392E3132362E303131000187210685018722060361702D310001C6530187230603383739390001010101C655018711060361702D310001871006AB0187070603506F7274616C2043
 07915512499995694409D0437658FEF63FF541116041157288870B05040B8423F000031803036C61726F0001870806037761702E636C61726F2E636F6D2E627200018709068901C65A01870C069A01870D0603636C61726F0001870E0603636C61726F00010101C600015501873606037732000187070603506F7274616C20436C61726F000187390603677072732E736D61727474727573742E636F6D00010101
 */
 /*
@@ -1226,7 +1240,7 @@ var Gsm7Bit = {
 		if (isNaN(semioctets) && semioctets !== null && semioctets !== undefined) {
 			semioctets = parseInt(semioctets, 16);
 		}
-		return Gsm7Bit.decode(pdu, Math.floor(semioctets/2) + semioctets % 2, udh);
+                return Gsm7Bit.decode(pdu, Math.floor(semioctets/2) + semioctets % 2, udh);
 	},
 	decodeSeptets: function(pdu, septets, udh) {
 		if (isNaN(septets) && septets !== null && septets !== undefined) {
@@ -1244,10 +1258,10 @@ var Gsm7Bit = {
 		var addChar = function(character) {
 			if (skip-- > 0)	return;
 			if (character == null) {
-				dE('7bit character not found on Default Table: ' + (code & 0x7F).toString(16));
+				dW('Gsm7Bit:: 7bit character not found on Default Table: ' + (code & 0x7F).toString(16) + ', replacing with space');
 				character = ' ';
 			} else if (character == 'ESCAPE') {
-				dI('7bit ESCAPE character found, not supported. Substitute to space');
+				dW('Gsm7Bit:: 7bit ESCAPE character found, currently not supported, replacing with space');
 				character = ' ';
 			}
 			text += character;
@@ -1255,7 +1269,7 @@ var Gsm7Bit = {
 		
 		if (udh !== null && udh !== undefined && udh.consumed !== undefined) {
 			skip = Math.ceil(8*udh.consumed / 7);
-			dI('Gsm7Bit.decode(): skipping ' + skip + ' due to udh');
+			dI('Gsm7Bit:: skipping ' + skip + 'octets due to User Data Header');
 		}
 
 		for (var i = 0; i < length; i++) {
@@ -1272,21 +1286,21 @@ var Gsm7Bit = {
 				code = 0;
 			}
 		}
-		dI('Gsm7Bit.decode():');
-		dI(text);
+		dI('Gsm7Bit:: result: ' + text);
 		return {consumed: cursor, result: {Value: text, Data: getSubstringFromPdu(pdu, cursor)}};
 	}
 }
 
 
 module.exports = Gsm7Bit;
+
 },{"./helper.js":2}],2:[function(require,module,exports){
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 var dW = function(m) {
 	if (typeof document !== 'undefined' && document.getElementById("console") !== null && document.getElementById("console") !== undefined) {
 		document.getElementById("console").value += m + '\n';
 	}
-	console.warning(m);
+	console.error(m);
 }
 
 var dE = function(m) {
@@ -1331,9 +1345,12 @@ Mask.prototype.isMatch = function(mskPar) {
 	} else {
 		var values = this.K.split('-');
 		if (values.length > 2) return false; //not suported
-		if (values[0] == '' || values[1] == '') return false; //one is empty
+		if (values[0] == '' || values[1] == '') {
+                    dW('Mask::isMatch invalid range mask, mask: ' + this.K);
+                    return false; //one is empty
+                }
 		if (mskPar >= parseInt(values[0]) && mskPar <= parseInt(values[1])) {
-			return true;
+		    return true;
 		}
 		return false;
 	}
@@ -1346,6 +1363,7 @@ Mask.prototype.findValue = function(par) {
 			return this.V[i].findValue(par);
 		}
 	}
+        dW('Mask::findValue no match found for ' + par);
 	return null;
 }
 
@@ -1357,10 +1375,8 @@ var Decoder = function(key, mask, func) {
 Decoder.prototype = new Mask();
 Decoder.prototype.decode = function(par) {
 	var func = this.findValue(par);
-	if (func == null) {
-		dE('Decoder could not find function for: ' + this.K.toString(16));
-	}
-	return func(par);
+	//TODO this will break when the function is not found.
+        return func(par);
 }
 
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
