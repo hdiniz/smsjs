@@ -3,7 +3,7 @@ var dW = function(m) {
 	if (typeof document !== 'undefined' && document.getElementById("console") !== null && document.getElementById("console") !== undefined) {
 		document.getElementById("console").value += m + '\n';
 	}
-	console.warning(m);
+	console.error(m);
 }
 
 var dE = function(m) {
@@ -48,9 +48,12 @@ Mask.prototype.isMatch = function(mskPar) {
 	} else {
 		var values = this.K.split('-');
 		if (values.length > 2) return false; //not suported
-		if (values[0] == '' || values[1] == '') return false; //one is empty
+		if (values[0] == '' || values[1] == '') {
+                    dW('Mask::isMatch invalid range mask, mask: ' + this.K);
+                    return false; //one is empty
+                }
 		if (mskPar >= parseInt(values[0]) && mskPar <= parseInt(values[1])) {
-			return true;
+		    return true;
 		}
 		return false;
 	}
@@ -63,6 +66,7 @@ Mask.prototype.findValue = function(par) {
 			return this.V[i].findValue(par);
 		}
 	}
+        dW('Mask::findValue no match found for ' + par);
 	return null;
 }
 
@@ -74,10 +78,8 @@ var Decoder = function(key, mask, func) {
 Decoder.prototype = new Mask();
 Decoder.prototype.decode = function(par) {
 	var func = this.findValue(par);
-	if (func == null) {
-		dE('Decoder could not find function for: ' + this.K.toString(16));
-	}
-	return func(par);
+	//TODO this will break when the function is not found.
+        return func(par);
 }
 
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-

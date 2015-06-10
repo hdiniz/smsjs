@@ -143,7 +143,7 @@ var Gsm7Bit = {
 		if (isNaN(semioctets) && semioctets !== null && semioctets !== undefined) {
 			semioctets = parseInt(semioctets, 16);
 		}
-		return Gsm7Bit.decode(pdu, Math.floor(semioctets/2) + semioctets % 2, udh);
+                return Gsm7Bit.decode(pdu, Math.floor(semioctets/2) + semioctets % 2, udh);
 	},
 	decodeSeptets: function(pdu, septets, udh) {
 		if (isNaN(septets) && septets !== null && septets !== undefined) {
@@ -161,10 +161,10 @@ var Gsm7Bit = {
 		var addChar = function(character) {
 			if (skip-- > 0)	return;
 			if (character == null) {
-				dE('7bit character not found on Default Table: ' + (code & 0x7F).toString(16));
+				dW('Gsm7Bit:: 7bit character not found on Default Table: ' + (code & 0x7F).toString(16) + ', replacing with space');
 				character = ' ';
 			} else if (character == 'ESCAPE') {
-				dI('7bit ESCAPE character found, not supported. Substitute to space');
+				dW('Gsm7Bit:: 7bit ESCAPE character found, currently not supported, replacing with space');
 				character = ' ';
 			}
 			text += character;
@@ -172,7 +172,7 @@ var Gsm7Bit = {
 		
 		if (udh !== null && udh !== undefined && udh.consumed !== undefined) {
 			skip = Math.ceil(8*udh.consumed / 7);
-			dI('Gsm7Bit.decode(): skipping ' + skip + ' due to udh');
+			dI('Gsm7Bit:: skipping ' + skip + 'octets due to User Data Header');
 		}
 
 		for (var i = 0; i < length; i++) {
@@ -189,8 +189,7 @@ var Gsm7Bit = {
 				code = 0;
 			}
 		}
-		dI('Gsm7Bit.decode():');
-		dI(text);
+		dI('Gsm7Bit:: result: ' + text);
 		return {consumed: cursor, result: {Value: text, Data: getSubstringFromPdu(pdu, cursor)}};
 	}
 }
