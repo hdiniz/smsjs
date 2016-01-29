@@ -806,7 +806,7 @@ var UserDataField = {
                 }
 		
 		var ud = {consumed: 0};
-		ud.result = {Value:'not decoded', Data: getSubstringFromPdu(pdu, udl)};
+		ud.result = {Value:'not decoded', Data: getSubstringFromPdu(pdu, parseInt(udl, 16))};
 		if (charset == 'GSM 7 bit default alphabet') {
 			dI('UserDataField:: decoding as GSM 7 Bit alphabet');
 			ud = Gsm7Bit.decodeSeptets(pdu, udl, udh);
